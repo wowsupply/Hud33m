@@ -1,0 +1,30 @@
+{
+  "name": "@hud/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "worker": "tsx --env-file-if-exists=../../.env src/worker.ts",
+    "start": "tsx src/main.ts",
+    "create-admin": "tsx --env-file-if-exists=../../.env src/scripts/create-admin.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "start:worker": "tsx src/worker.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@hud/ai": "workspace:*",
+    "@hud/db": "workspace:*",
+    "@hud/shared": "workspace:*",
+    "@trpc/server": "^11.29.4",
+    "drizzle-orm": "^0.44.7",
+    "fastify": "^5.12.8",
+    "superjson": "^2.2.6",
+    "zod": "^4.6.7",
+    "tsx": "^4.23.15"
+  }
+}

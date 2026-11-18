@@ -1,0 +1,26 @@
+{
+  "name": "@hud/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./seed-foods": "./src/seed/foods.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/migrate-cli.ts",
+    "seed": "tsx src/seed-cli.ts",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@hud/shared": "workspace:*",
+    "drizzle-orm": "^0.44.7",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
+  }
+}
