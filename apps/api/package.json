@@ -13,7 +13,8 @@
     "create-admin": "tsx --env-file-if-exists=../../.env src/scripts/create-admin.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "start:worker": "tsx src/worker.ts"
+    "start:worker": "tsx src/worker.ts",
+    "migrate": "tsx --env-file-if-exists=../../.env src/scripts/migrate.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

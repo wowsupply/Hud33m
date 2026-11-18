@@ -1,0 +1,34 @@
+{
+  "name": "@hud/student",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hud/shared": "workspace:*",
+    "@hud/ui": "workspace:*",
+    "@tanstack/react-query": "^5.108.0",
+    "@trpc/client": "^11.29.4",
+    "@trpc/tanstack-react-query": "^11.29.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router": "^7.18.5",
+    "superjson": "^2.2.6"
+  },
+  "devDependencies": {
+    "@hud/api": "workspace:*",
+    "@tailwindcss/vite": "^4.3.5",
+    "@trpc/server": "^11.29.4",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tailwindcss": "^4.3.5",
+    "vite": "^7.3.8",
+    "vite-plugin-pwa": "^1.3.0"
+  }
+}

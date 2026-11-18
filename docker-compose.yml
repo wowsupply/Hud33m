@@ -1,0 +1,63 @@
+# Развёртывание на одной виртуальной машине (staging или небольшой прод).
+# В продакшене базу данных лучше взять управляемую (с бэкапами) и убрать сервис db.
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hud
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., target: api }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/hud
+    command: ["node", "--import", "tsx", "src/scripts/migrate.ts"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/hud
+      TRUST_PROXY: "true"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/hud
+    command: ["node", "--import", "tsx", "src/worker.ts"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      STUDENT_DOMAIN: ${STUDENT_DOMAIN:?задайте STUDENT_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?задайте ADMIN_DOMAIN}
+    volumes:
+      - caddy_data:/data
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  caddy_data:

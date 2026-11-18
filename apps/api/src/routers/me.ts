@@ -1,11 +1,6 @@
 import { users } from '@hud/db';
-import {
-  CONSENT_DOCS,
-  CONSENT_TYPES,
-  isValidTimeZone,
-  notificationSettingsSchema,
-  questionnaireSchema,
-} from '@hud/shared';
+import { CONSENT_DOCS, CONSENT_TYPES, isValidTimeZone } from '@hud/shared';
+import { notificationSettingsSchema, questionnaireSchema } from '@hud/shared/schemas';
 import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';

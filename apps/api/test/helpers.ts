@@ -36,9 +36,8 @@ export function useTestDeps(opts: { llm?: AiEngine | null; env?: Record<string, 
   beforeEach(async () => {
     clock.set('2026-11-18T09:00:00Z');
     sms.sent.length = 0;
-    await handle.sql.unsafe(
-      'truncate users, programs, otp_codes, ai_requests, audit_log restart identity cascade',
-    );
+    // DELETE, а не TRUNCATE … CASCADE: каскад по внешнему ключу foods.created_by_id стёр бы базу продуктов.
+    await handle.sql.unsafe('delete from users; delete from programs; delete from otp_codes; delete from ai_requests; delete from audit_log;');
   });
   afterAll(async () => {
     await handle.close();

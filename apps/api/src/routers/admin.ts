@@ -1,12 +1,6 @@
 import { cohorts, dictionaryItems, foods, meals, overeatingNotes, programs, users, weeklyReports } from '@hud/db';
-import {
-  COMMENT_TARGETS,
-  DICTIONARY_KINDS,
-  PROGRAM_KINDS,
-  dateStrSchema,
-  per100Schema,
-  weekStartOf,
-} from '@hud/shared';
+import { COMMENT_TARGETS, DICTIONARY_KINDS, PROGRAM_KINDS, weekStartOf } from '@hud/shared';
+import { dateStrSchema, per100Schema } from '@hud/shared/schemas';
 import { TRPCError } from '@trpc/server';
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { z } from 'zod';

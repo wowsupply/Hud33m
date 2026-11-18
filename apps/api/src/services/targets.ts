@@ -1,11 +1,6 @@
 import { nutritionTargets, questionnaires, users, weightEntries, type Db } from '@hud/db';
-import {
-  ageFromBirthDate,
-  computeTargets,
-  localDate,
-  type QuestionnaireInput,
-  type TargetsResult,
-} from '@hud/shared';
+import { ageFromBirthDate, computeTargets, localDate, type TargetsResult } from '@hud/shared';
+import type { QuestionnaireInput } from '@hud/shared/schemas';
 import { desc, eq } from 'drizzle-orm';
 import type { Deps } from '../deps';
 import { upsertWeight } from './diary';

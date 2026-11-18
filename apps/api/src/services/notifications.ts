@@ -1,5 +1,6 @@
 import { notificationSettings, notifications, type Db } from '@hud/db';
-import type { NotificationSettingsInput, NotificationType } from '@hud/shared';
+import type { NotificationType } from '@hud/shared';
+import type { NotificationSettingsInput } from '@hud/shared/schemas';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 export interface NotifyInput {

@@ -1,4 +1,5 @@
-import { dateStrSchema, weekStartOf } from '@hud/shared';
+import { weekStartOf } from '@hud/shared';
+import { dateStrSchema } from '@hud/shared/schemas';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { getDaySummary, getWeeklyReport, listWeeks } from '../services/insights';

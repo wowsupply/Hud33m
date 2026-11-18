@@ -1,0 +1,39 @@
+/* Общая тема обоих приложений (Tailwind CSS v4). Подключается после `@import "tailwindcss"`. */
+@source "./";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  --color-brand-50: #f2f7f4;
+  --color-brand-100: #e0ede5;
+  --color-brand-200: #c2dbcc;
+  --color-brand-300: #9cc2ab;
+  --color-brand-400: #72a487;
+  --color-brand-500: #52876a;
+  --color-brand-600: #3f6d55;
+  --color-brand-700: #345846;
+  --color-brand-800: #2c4739;
+  --color-brand-900: #253b30;
+
+  --color-protein: #4f86c6;
+  --color-fat: #d99a2b;
+  --color-carbs: #8a6fd1;
+
+  --color-surface: #fbfaf8;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-surface text-stone-800 antialiased;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+}

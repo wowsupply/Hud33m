@@ -31,10 +31,16 @@ export interface Ctx {
 const t = initTRPC.context<Ctx>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    // Подробности внутренних ошибок остаются в логах сервера и не показываются пользователю.
+    const message =
+      error.cause instanceof ZodError
+        ? 'Проверьте правильность заполнения полей'
+        : error.code === 'INTERNAL_SERVER_ERROR'
+          ? 'Что-то пошло не так. Попробуйте ещё раз'
+          : shape.message;
     return {
       ...shape,
-      message:
-        error.cause instanceof ZodError ? 'Проверьте правильность заполнения полей' : shape.message,
+      message,
       data: {
         ...shape.data,
         zodIssues: error.cause instanceof ZodError ? error.cause.issues : undefined,

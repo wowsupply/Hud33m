@@ -1,4 +1,4 @@
-import { dateStrSchema, mealInputSchema, weightInputSchema } from '@hud/shared';
+import { dateStrSchema, mealInputSchema, weightInputSchema } from '@hud/shared/schemas';
 import { z } from 'zod';
 import { logAiCall } from '../services/audit';
 import { aiAllowed } from '../services/consents';

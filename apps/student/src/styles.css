@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "@hud/ui/theme.css";
+@source "../src";
+
+@layer base {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

@@ -1,6 +1,7 @@
 import {
   comments,
   dictionaryItems,
+  foods,
   mealItems,
   meals,
   overeatingNotes,
@@ -15,10 +16,10 @@ import {
   mealTotals,
   nutrientsForGrams,
   zonedTimeToUtc,
-  type MealInput,
   type MealType,
   type OvereatingNoteData,
 } from '@hud/shared';
+import type { MealInput } from '@hud/shared/schemas';
 import { TRPCError } from '@trpc/server';
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
 import type { Deps } from '../deps';
@@ -205,13 +206,22 @@ function buildMealRows(input: MealInput) {
   return { items, totals, description };
 }
 
+/** Ссылки на продукты, которых уже нет в базе, обнуляем — значения на 100 г сохраняются в записи. */
+async function dropUnknownFoods(db: Db, input: MealInput): Promise<MealInput> {
+  const ids = [...new Set(input.items.map((i) => i.foodId).filter((x): x is string => !!x))];
+  if (ids.length === 0) return input;
+  const known = new Set((await db.select({ id: foods.id }).from(foods).where(inArray(foods.id, ids))).map((r) => r.id));
+  return { ...input, items: input.items.map((i) => (i.foodId && !known.has(i.foodId) ? { ...i, foodId: null } : i)) };
+}
+
 export async function createMeal(
   deps: Deps,
   user: { id: string; timezone: string },
-  input: MealInput,
+  rawInput: MealInput,
   aiRequestId: string | null = null,
 ): Promise<string> {
-  assertDateAllowed(deps, user.timezone, input.diaryDate);
+  assertDateAllowed(deps, user.timezone, rawInput.diaryDate);
+  const input = await dropUnknownFoods(deps.db, rawInput);
   const { items, totals, description } = buildMealRows(input);
   return deps.db.transaction(async (tx) => {
     const [meal] = await tx
@@ -242,10 +252,11 @@ export async function updateMeal(
   deps: Deps,
   user: { id: string; timezone: string },
   mealId: string,
-  input: MealInput,
+  rawInput: MealInput,
 ): Promise<void> {
   await getMealOwned(deps.db, user.id, mealId);
-  assertDateAllowed(deps, user.timezone, input.diaryDate);
+  assertDateAllowed(deps, user.timezone, rawInput.diaryDate);
+  const input = await dropUnknownFoods(deps.db, rawInput);
   const { items, totals, description } = buildMealRows(input);
   await deps.db.transaction(async (tx) => {
     await tx

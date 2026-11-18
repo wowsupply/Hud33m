@@ -63,6 +63,8 @@ describe('путь ученицы', () => {
     const parsed = await student.call.diary.parseMeal({ text: 'Два яйца, кусок хлеба, 30 граммов сыра, кофе с молоком' });
     expect(parsed.engine).toBe('local');
     expect(parsed.items).toHaveLength(4);
+    expect(parsed.items.every((i) => i.valueSource === 'db' && !i.needsReview)).toBe(true);
+    expect(parsed.items[0]?.name).toBe('Яйцо куриное варёное');
 
     await student.call.diary.createMeal({
       diaryDate: '2026-11-18',

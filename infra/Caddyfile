@@ -1,0 +1,40 @@
+# Домены задаются переменными STUDENT_DOMAIN и ADMIN_DOMAIN. Caddy сам получает TLS-сертификаты.
+
+(common) {
+	encode gzip zstd
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
+		-Server
+	}
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+}
+
+{$STUDENT_DOMAIN} {
+	import common
+	@sw path /sw.js /registerSW.js /manifest.webmanifest
+	header @sw Cache-Control "no-cache"
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	handle {
+		root * /srv/student
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	import common
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	handle {
+		root * /srv/admin
+		try_files {path} /index.html
+		file_server
+	}
+}
