@@ -12,6 +12,7 @@ import {
 import {
   addDays,
   buildDayFacts,
+  detectSafetySignals,
   buildWeekFacts,
   dateRange,
   localDate,
@@ -130,7 +131,11 @@ export async function getDaySummary(
   }
   if (!opts.generate) return null;
 
-  const { value, meta } = await deps.ai.daySummary(facts, { allowLlm: await aiAllowed(deps.db, user.id) });
+  // Если в записях дня есть тревожные сигналы, текст пишет только шаблон — без языковой модели.
+  const sensitive = !!detectSafetySignals(
+    day!.meals.flatMap((m) => [m.rawInput, m.note?.situationText, m.note?.comment]),
+  );
+  const { value, meta } = await deps.ai.daySummary(facts, { allowLlm: !sensitive && (await aiAllowed(deps.db, user.id)) });
   await logAiCall(deps.db, user.id, meta);
   const row = {
     userId: user.id,

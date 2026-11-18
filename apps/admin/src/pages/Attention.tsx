@@ -1,5 +1,6 @@
 import { formatDateRu, MEAL_TYPE_LABELS, plural } from '@hud/shared';
-import { Card, PageLoader } from '@hud/ui';
+import { Button, Card, PageLoader } from '@hud/ui';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -8,13 +9,44 @@ import { useTRPC } from '../lib/trpc';
 
 export function AttentionPage() {
   const trpc = useTRPC();
-  const data = useQuery({ ...trpc.admin.attention.queryOptions(), refetchInterval: 30_000 });
+  const qc = useQueryClient();
+  const data = useQuery({ ...trpc.admin.attention.queryOptions(), refetchInterval: 5 * 60_000 });
+  const review = useMutation(trpc.admin.students.reviewSafetyFlag.mutationOptions({ onSuccess: () => qc.invalidateQueries({ queryKey: trpc.admin.pathKey() }) }));
   if (data.isPending) return <PageLoader />;
   if (!data.data) return null;
   const a = data.data;
   return (
     <div>
       <PageTitle title="Требуют внимания" subtitle={`Учениц: ${a.totals.students}, активных: ${a.totals.active}`} />
+      {a.safety.length > 0 && (
+        <Card className="mb-4 bg-rose-50/60 ring-rose-200">
+          <h2 className="mb-1 font-semibold text-rose-900">Тревожные сигналы</h2>
+          <p className="mb-3 text-sm text-rose-900/80">
+            В свободном тексте учениц есть фразы, на которые стоит обратить внимание. Свяжитесь с ученицей и при необходимости порекомендуйте обратиться к специалисту.
+          </p>
+          <div className="divide-y divide-rose-100">
+            {a.safety.map((f) => (
+              <div key={f.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Link to={f.diaryDate ? `/students/${f.studentId}/diary?date=${f.diaryDate}` : `/students/${f.studentId}/comments`} className="font-medium hover:text-brand-700">
+                      {f.studentName}
+                    </Link>
+                    <span className={f.level === 'high' ? 'rounded-full bg-rose-600 px-2 py-0.5 text-xs text-white' : 'rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900'}>
+                      {f.level === 'high' ? 'срочно' : 'важно'}
+                    </span>
+                    {f.diaryDate && <span className="text-xs text-stone-500">{formatDateRu(f.diaryDate)}</span>}
+                  </div>
+                  <p className="mt-1 text-sm text-stone-700">«{f.excerpt}»</p>
+                </div>
+                <Button size="sm" variant="secondary" loading={review.isPending && review.variables?.flagId === f.id} onClick={() => review.mutate({ studentId: f.studentId, flagId: f.id })}>
+                  Отметить: обработано
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <div className="grid gap-4 xl:grid-cols-2">
         <Block title="Новые эпизоды переедания" hint="за 3 дня, без вашего комментария" empty="Новых эпизодов нет" count={a.episodes.length}>
           {a.episodes.map((e) => (

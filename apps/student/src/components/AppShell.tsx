@@ -1,6 +1,6 @@
 import { CONSENT_DOCS, CONSENT_TYPES, formatDateRu } from '@hud/shared';
-import { cn, EmptyState, isUnauthorized, PageLoader } from '@hud/ui';
-import { useQuery } from '@tanstack/react-query';
+import { cn, EmptyState, isUnauthorized, PageLoader, useEventStream } from '@hud/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, type ReactNode } from 'react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
 import { useTRPC, type RouterOutputs } from '../lib/trpc';
@@ -20,6 +20,9 @@ export function AppShell() {
   const trpc = useTRPC();
   const location = useLocation();
   const me = useQuery(trpc.me.get.queryOptions());
+  const qc = useQueryClient();
+  // Живые обновления: комментарий наставника, новые цели, уведомления — без перезагрузки.
+  useEventStream(me.data ? '/api/events?app=student' : null, () => void qc.invalidateQueries());
 
   if (me.isPending) return <PageLoader />;
   if (me.error) {
@@ -104,7 +107,7 @@ const NAV = [
 
 function BottomNav() {
   const trpc = useTRPC();
-  const unread = useQuery({ ...trpc.comms.unread.queryOptions(), refetchInterval: 60_000 });
+  const unread = useQuery({ ...trpc.comms.unread.queryOptions(), refetchInterval: 5 * 60_000 });
   const badge = (unread.data?.comments ?? 0) + (unread.data?.notifications ?? 0);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">

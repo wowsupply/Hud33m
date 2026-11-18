@@ -25,6 +25,7 @@ import type { Deps } from '../deps';
 import type { SessionUser } from '../trpc';
 import { computeAccess } from './access';
 import { createInvite } from './auth';
+import { openSafetyFlags } from './safety';
 
 /** Наставник видит только закреплённых учениц, администратор — всех. */
 export async function assertCanAccessStudent(deps: Deps, actor: SessionUser, studentId: string) {
@@ -353,6 +354,7 @@ export async function changeEnrollment(deps: Deps, actor: SessionUser, enrollmen
     await deps.db.update(enrollments).set({ ...patch, updatedAt: now }).where(eq(enrollments.id, enrollmentId));
   }
   const { type, ...payload } = action;
+  await deps.events.publish({ kind: 'profile', studentId: e.userId });
   await deps.db.insert(enrollmentEvents).values({
     enrollmentId: newEnrollmentId ?? enrollmentId,
     actorId: actor.id,
@@ -393,7 +395,21 @@ export async function attention(deps: Deps, actor: SessionUser) {
     return `${s.firstName} ${s.lastName}`.trim();
   };
 
+  const visible = await visibleStudentIds(deps, actor);
+  const safety = (await openSafetyFlags(deps, visible)).map((r) => ({
+    id: r.flag.id,
+    studentId: r.flag.studentId,
+    studentName: `${r.firstName} ${r.lastName}`.trim(),
+    level: r.flag.level,
+    excerpt: r.flag.excerpt,
+    matches: r.flag.matches,
+    diaryDate: r.flag.diaryDate,
+    source: r.flag.source,
+    createdAt: r.flag.createdAt,
+  }));
+
   return {
+    safety,
     episodes: recentEpisodes
       .filter((e) => !commentedIds.has(e.id))
       .map((e) => ({ ...e, studentName: name(e.userId) })),

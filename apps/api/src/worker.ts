@@ -17,7 +17,8 @@ async function tick() {
     if (!lock?.ok) return;
     try {
       const r = await runTick(deps);
-      if (r.expired || r.endingNotices || r.reminders || r.weeklyReports) console.log('[worker]', JSON.stringify(r));
+      await deps.background.flush();
+      if (r.expired || r.endingNotices || r.reminders || r.weeklyReports || r.redelivered) console.log('[worker]', JSON.stringify(r));
     } finally {
       await handle.sql`select pg_advisory_unlock(${LOCK_ID})`;
     }

@@ -5,3 +5,4 @@ export * from './meal';
 export * from './nutrition';
 export * from './phone';
 export * from './stats';
+export * from './safety';

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { PageHeader } from '../components/AppShell';
+import { SupportSheet, type SafetyInfo } from '../components/SupportSheet';
 import { useTRPC, type RouterOutputs } from '../lib/trpc';
 
 const dt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -86,12 +87,14 @@ function Thread({ thread }: { thread: RouterOutputs['comms']['threads'][number] 
   const qc = useQueryClient();
   const [reply, setReply] = useState('');
   const [open, setOpen] = useState(false);
+  const [support, setSupport] = useState<SafetyInfo | null>(null);
   const lastStaff = [...thread.comments].reverse().find((c) => c.author.isStaff);
   const send = useMutation(
     trpc.comms.reply.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (r) => {
         setReply('');
         setOpen(false);
+        if (r.safety) setSupport(r.safety);
         await qc.invalidateQueries({ queryKey: trpc.comms.threads.queryKey() });
       },
       onError: (e) => toast(errorMessage(e), 'error'),
@@ -99,6 +102,7 @@ function Thread({ thread }: { thread: RouterOutputs['comms']['threads'][number] 
   );
   return (
     <Card>
+      <SupportSheet info={support} onClose={() => setSupport(null)} />
       <Link to={thread.link} className="text-sm font-medium text-brand-700">
         {thread.title} →
       </Link>

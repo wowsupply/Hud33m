@@ -1,5 +1,5 @@
 import { users } from '@hud/db';
-import { CONSENT_DOCS, CONSENT_TYPES, isValidTimeZone } from '@hud/shared';
+import { CONSENT_DOCS, CONSENT_TYPES, isValidTimeZone, MESSENGER_CHANNELS } from '@hud/shared';
 import { notificationSettingsSchema, questionnaireSchema } from '@hud/shared/schemas';
 import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
@@ -8,7 +8,9 @@ import { getAccessState } from '../services/access';
 import { logoutEverywhere } from '../services/auth';
 import { acceptConsents, consentState, revokeConsent } from '../services/consents';
 import { exportStudentData } from '../services/export';
+import { createLinkUrl, messengerStatus, unlinkMessenger } from '../services/messengers';
 import { getNotificationSettings, updateNotificationSettings } from '../services/notifications';
+import { pushSubscriptionsCount, removePushSubscription, savePushSubscription } from '../services/push';
 import { currentTargets, latestQuestionnaire, submitQuestionnaire } from '../services/targets';
 import { authedProcedure, router, studentProcedure } from '../trpc';
 
@@ -77,6 +79,41 @@ export const meRouter = router({
 
   /** Выгрузка всех своих данных (требование законодательства о ПД). */
   exportData: studentProcedure.query(({ ctx }) => exportStudentData(ctx.deps, ctx.user.id)),
+
+  /** Каналы доставки: Web Push и боты в мессенджерах. */
+  channels: authedProcedure.query(async ({ ctx }) => ({
+    push: {
+      publicKey: ctx.deps.push?.publicKey ?? null,
+      subscriptions: await pushSubscriptionsCount(ctx.deps, ctx.user.id),
+    },
+    messengers: await messengerStatus(ctx.deps, ctx.user.id),
+  })),
+
+  subscribePush: authedProcedure
+    .input(
+      z.object({
+        endpoint: z.url().max(2000),
+        keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(5).max(100) }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await savePushSubscription(ctx.deps, ctx.user.id, { endpoint: input.endpoint, ...input.keys }, ctx.userAgent);
+      return { ok: true };
+    }),
+
+  unsubscribePush: authedProcedure.input(z.object({ endpoint: z.string().max(2000) })).mutation(async ({ ctx, input }) => {
+    await removePushSubscription(ctx.deps, ctx.user.id, input.endpoint);
+    return { ok: true };
+  }),
+
+  linkMessenger: authedProcedure
+    .input(z.object({ channel: z.enum(MESSENGER_CHANNELS) }))
+    .mutation(async ({ ctx, input }) => ({ url: await createLinkUrl(ctx.deps, ctx.user.id, input.channel) })),
+
+  unlinkMessenger: authedProcedure.input(z.object({ channel: z.enum(MESSENGER_CHANNELS) })).mutation(async ({ ctx, input }) => {
+    await unlinkMessenger(ctx.deps, ctx.user.id, input.channel);
+    return { ok: true };
+  }),
 
   logoutEverywhere: authedProcedure.mutation(async ({ ctx }) => {
     await logoutEverywhere(ctx.deps, ctx.user.id);

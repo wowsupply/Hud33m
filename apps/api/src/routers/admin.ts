@@ -1,4 +1,4 @@
-import { cohorts, dictionaryItems, foods, meals, overeatingNotes, programs, users, weeklyReports } from '@hud/db';
+import { cohorts, dictionaryItems, foods, meals, overeatingNotes, programs, safetyFlags, users, weeklyReports } from '@hud/db';
 import { COMMENT_TARGETS, DICTIONARY_KINDS, PROGRAM_KINDS, weekStartOf } from '@hud/shared';
 import { dateStrSchema, per100Schema } from '@hud/shared/schemas';
 import { TRPCError } from '@trpc/server';
@@ -27,6 +27,7 @@ import {
   setManualTargets,
   targetsHistory,
 } from '../services/targets';
+import { studentSafetyFlags } from '../services/safety';
 import { adminProcedure, router, staffProcedure } from '../trpc';
 
 const studentId = z.object({ studentId: z.uuid() });
@@ -206,7 +207,9 @@ const studentsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await setManualTargets(ctx.deps.db, ctx.student.id, ctx.user.id, input);
+      const { studentId: _sid, ...targets } = input;
+      await setManualTargets(ctx.deps.db, ctx.student.id, ctx.user.id, targets);
+      await ctx.deps.events.publish({ kind: 'profile', studentId: ctx.student.id });
       return { ok: true };
     }),
 
@@ -214,13 +217,27 @@ const studentsRouter = router({
     .input(z.object({ deficit: z.number().min(0).max(0.3).optional() }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await recalculateTargets(ctx.deps, ctx.student.id, ctx.user.id, input.deficit);
+        const r = await recalculateTargets(ctx.deps, ctx.student.id, ctx.user.id, input.deficit);
+        await ctx.deps.events.publish({ kind: 'profile', studentId: ctx.student.id });
+        return r;
       } catch (e) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: e instanceof Error ? e.message : 'Ошибка расчёта' });
       }
     }),
 
   threads: studentScoped.query(({ ctx }) => listThreads(ctx.deps, ctx.student.id, 'staff')),
+
+  safetyFlags: studentScoped.query(({ ctx }) => studentSafetyFlags(ctx.deps, ctx.student.id)),
+
+  reviewSafetyFlag: studentScoped.input(z.object({ flagId: z.uuid() })).mutation(async ({ ctx, input }) => {
+    await ctx.deps.db
+      .update(safetyFlags)
+      .set({ reviewedAt: ctx.deps.now(), reviewedById: ctx.user.id })
+      .where(and(eq(safetyFlags.id, input.flagId), eq(safetyFlags.studentId, ctx.student.id)));
+    await audit(ctx.deps.db, { actorId: ctx.user.id, studentId: ctx.student.id, action: 'review_safety_flag', meta: input });
+    await ctx.deps.events.publish({ kind: 'safety', studentId: ctx.student.id });
+    return { ok: true };
+  }),
 
   comment: studentScoped
     .input(

@@ -2,6 +2,7 @@ import { enrollmentEvents, enrollments, meals, notificationSettings, users, week
 import { addDays, daysBetween, formatDateRu, formatWeekRu, localParts, plural, weekStartOf } from '@hud/shared';
 import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Deps } from './deps';
+import { sweepDeliveries } from './services/delivery';
 import { generateWeeklyReport } from './services/insights';
 import { notify } from './services/notifications';
 
@@ -20,6 +21,7 @@ export interface TickResult {
   endingNotices: number;
   reminders: number;
   weeklyReports: number;
+  redelivered: number;
 }
 
 /**
@@ -27,7 +29,8 @@ export interface TickResult {
  * отчёты — уникальным индексом, поэтому запуск чаще или на нескольких серверах безопасен.
  */
 export async function runTick(deps: Deps, now: Date = deps.now()): Promise<TickResult> {
-  const result: TickResult = { expired: 0, endingNotices: 0, reminders: 0, weeklyReports: 0 };
+  const result: TickResult = { expired: 0, endingNotices: 0, reminders: 0, weeklyReports: 0, redelivered: 0 };
+  result.redelivered = await sweepDeliveries(deps);
 
   const rows = await deps.db
     .select({ e: enrollments, u: users, s: notificationSettings })
@@ -43,7 +46,7 @@ export async function runTick(deps: Deps, now: Date = deps.now()): Promise<TickR
     if (row.e.endsOn < local.date) {
       await deps.db.update(enrollments).set({ status: 'expired', updatedAt: now }).where(eq(enrollments.id, row.e.id));
       await deps.db.insert(enrollmentEvents).values({ enrollmentId: row.e.id, action: 'expired', payload: { endsOn: row.e.endsOn } });
-      await notify(deps.db, {
+      await notify(deps, {
         userId: row.u.id,
         type: 'access_ended',
         title: 'Доступ к программе завершён',
@@ -58,7 +61,7 @@ export async function runTick(deps: Deps, now: Date = deps.now()): Promise<TickR
 
     const daysLeft = daysBetween(local.date, row.e.endsOn);
     if (daysLeft <= 3 && (row.s?.accessEnabled ?? true)) {
-      const created = await notify(deps.db, {
+      const created = await notify(deps, {
         userId: row.u.id,
         type: 'access_ending',
         title: 'Скоро завершится доступ',
@@ -101,7 +104,7 @@ export async function runTick(deps: Deps, now: Date = deps.now()): Promise<TickR
     const hasWeight = weights.some((w) => w.userId === row.u.id && w.date === local.date);
     if ((s?.weighInEnabled ?? true) && weighDue && !hasWeight) {
       if (
-        await notify(deps.db, {
+        await notify(deps, {
           userId: row.u.id,
           type: 'weigh_in_reminder',
           title: 'Доброе утро!',
@@ -118,7 +121,7 @@ export async function runTick(deps: Deps, now: Date = deps.now()): Promise<TickR
     const count = mealCounts.find((m) => m.userId === row.u.id && m.date === local.date)?.n ?? 0;
     if ((s?.diaryEnabled ?? true) && diaryDue && count < 2) {
       if (
-        await notify(deps.db, {
+        await notify(deps, {
           userId: row.u.id,
           type: 'diary_reminder',
           title: 'Заполним дневник?',
@@ -156,7 +159,7 @@ export async function runTick(deps: Deps, now: Date = deps.now()): Promise<TickR
       await generateWeeklyReport(deps, c.row.u, c.lastWeek);
       result.weeklyReports++;
       if (c.row.s?.reportsEnabled ?? true) {
-        await notify(deps.db, {
+        await notify(deps, {
           userId: c.row.u.id,
           type: 'weekly_report_ready',
           title: 'Готов отчёт за неделю',

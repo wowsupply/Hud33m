@@ -2,6 +2,8 @@ import { notificationSettings, notifications, type Db } from '@hud/db';
 import type { NotificationType } from '@hud/shared';
 import type { NotificationSettingsInput } from '@hud/shared/schemas';
 import { and, desc, eq, isNull } from 'drizzle-orm';
+import type { Deps } from '../deps';
+import { dispatchNotification } from './delivery';
 
 export interface NotifyInput {
   userId: string;
@@ -14,11 +16,12 @@ export interface NotifyInput {
 }
 
 /**
- * Создаёт уведомление в ленте приложения. Каналы доставки (Web Push, бот в мессенджере)
- * подключаются следующим этапом и будут читать эту же таблицу.
+ * Создаёт уведомление в ленте приложения и запускает доставку во внешние каналы
+ * (Web Push, бот в мессенджере) в фоне — ответ пользователю не ждёт доставки.
+ * Недоставленное воркер повторит.
  */
-export async function notify(db: Db, n: NotifyInput): Promise<boolean> {
-  const rows = await db
+export async function notify(deps: Deps, n: NotifyInput): Promise<boolean> {
+  const rows = await deps.db
     .insert(notifications)
     .values({
       userId: n.userId,
@@ -28,15 +31,28 @@ export async function notify(db: Db, n: NotifyInput): Promise<boolean> {
       link: n.link ?? null,
       dedupeKey: n.dedupeKey ?? null,
       channels: ['inapp'],
+      createdAt: deps.now(),
     })
     .onConflictDoNothing({ target: notifications.dedupeKey })
     .returning({ id: notifications.id });
-  return rows.length > 0;
+  const id = rows[0]?.id;
+  if (!id) return false;
+  await deps.events.publish({ kind: 'notification', userId: n.userId });
+  deps.background.run(dispatchNotification(deps, id));
+  return true;
 }
 
 export async function listNotifications(db: Db, userId: string, limit = 50) {
   return db
-    .select()
+    .select({
+      id: notifications.id,
+      type: notifications.type,
+      title: notifications.title,
+      body: notifications.body,
+      link: notifications.link,
+      readAt: notifications.readAt,
+      createdAt: notifications.createdAt,
+    })
     .from(notifications)
     .where(eq(notifications.userId, userId))
     .orderBy(desc(notifications.createdAt))

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createComment, listThreads, markCommentsRead, unreadFromStaffCount } from '../services/comments';
 import { listNotifications, markNotificationsRead, unreadNotificationsCount } from '../services/notifications';
+import { scanForSafety } from '../services/safety';
 import { authedProcedure, router, studentProcedure } from '../trpc';
 
 export const commsRouter = router({
@@ -17,7 +18,13 @@ export const commsRouter = router({
         parentId: input.parentId,
         body: input.body,
       });
-      return { id };
+      const safety = await scanForSafety(ctx.deps, ctx.user, {
+        source: 'comment',
+        sourceId: id,
+        diaryDate: null,
+        texts: [input.body],
+      });
+      return { id, safety };
     }),
 
   markRead: studentProcedure

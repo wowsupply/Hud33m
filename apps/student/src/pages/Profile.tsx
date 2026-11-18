@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { PageHeader, useMe } from '../components/AppShell';
+import { ChannelsCard } from '../components/ChannelsCard';
 import { useTRPC } from '../lib/trpc';
 
 export function ProfilePage() {
@@ -83,15 +84,16 @@ export function ProfilePage() {
           )}
         </Card>
 
+        <SectionTitle>Куда присылать уведомления</SectionTitle>
+        <ChannelsCard />
+
         <SectionTitle>Напоминания</SectionTitle>
         <Card>
           {!ns ? (
             <PageLoader />
           ) : (
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
-                <Switch checked={ns.weighInEnabled} onChange={(v) => update({ weighInEnabled: v })} label="Утреннее взвешивание" />
-              </div>
+              <Switch checked={ns.weighInEnabled} onChange={(v) => update({ weighInEnabled: v })} label="Утреннее взвешивание" />
               {ns.weighInEnabled && (
                 <Input type="time" value={ns.weighInTime} onChange={(e) => update({ weighInTime: e.target.value })} className="w-32" />
               )}

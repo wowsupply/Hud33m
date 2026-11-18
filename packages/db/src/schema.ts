@@ -6,6 +6,7 @@ import {
   ENROLLMENT_STATUSES,
   INPUT_METHODS,
   MEAL_TYPES,
+  MESSENGER_CHANNELS,
   NOTIFICATION_TYPES,
   PROGRAM_KINDS,
   ROLES,
@@ -48,6 +49,8 @@ export const commentTargetEnum = pgEnum('comment_target', COMMENT_TARGETS);
 export const notificationTypeEnum = pgEnum('notification_type', NOTIFICATION_TYPES);
 export const consentTypeEnum = pgEnum('consent_type', CONSENT_TYPES);
 export const targetSourceEnum = pgEnum('target_source', ['auto', 'mentor']);
+export const messengerChannelEnum = pgEnum('messenger_channel', MESSENGER_CHANNELS);
+export const safetyLevelEnum = pgEnum('safety_level', ['high', 'medium']);
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = () => timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
@@ -67,6 +70,11 @@ export const users = pgTable('users', {
   sex: sexEnum('sex').notNull().default('female'),
   timezone: text('timezone').notNull().default('Europe/Moscow'),
   isBlocked: boolean('is_blocked').notNull().default(false),
+  /** TOTP (двухфакторная защита кабинета): секрет хранится зашифрованным. */
+  totpSecretEnc: text('totp_secret_enc'),
+  totpPendingSecretEnc: text('totp_pending_secret_enc'),
+  totpEnabledAt: timestamp('totp_enabled_at', { withTimezone: true }),
+  totpLastCounter: integer('totp_last_counter'),
   onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
@@ -111,6 +119,19 @@ export const invites = pgTable('invites', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   createdById: uuid('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/** Второй шаг входа (TOTP): выдаётся после проверки кода из SMS. */
+export const loginChallenges = pgTable('login_challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: text('token_hash').notNull().unique(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  attempts: integer('attempts').notNull().default(0),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: createdAt(),
@@ -451,10 +472,60 @@ export const notifications = pgTable(
     dedupeKey: text('dedupe_key').unique(),
     channels: text('channels').array().notNull().default(emptyTextArray),
     readAt: timestamp('read_at', { withTimezone: true }),
+    /** Доставка во внешние каналы (push, мессенджер) завершена. */
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    deliveryAttempts: integer('delivery_attempts').notNull().default(0),
+    deliveryError: text('delivery_error'),
     createdAt: createdAt(),
   },
-  (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
+  (t) => [index('notifications_user_idx').on(t.userId, t.createdAt), index('notifications_delivery_idx').on(t.deliveredAt)],
 );
+
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull().unique(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('push_user_idx').on(t.userId)],
+);
+
+/** Привязка аккаунта к боту в мессенджере (внешний id — чат или пользователь мессенджера). */
+export const messengerLinks = pgTable(
+  'messenger_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    channel: messengerChannelEnum('channel').notNull(),
+    externalId: text('external_id').notNull(),
+    linkedAt: timestamp('linked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('messenger_user_channel_uq').on(t.userId, t.channel),
+    uniqueIndex('messenger_channel_external_uq').on(t.channel, t.externalId),
+  ],
+);
+
+export const messengerLinkTokens = pgTable('messenger_link_tokens', {
+  token: text('token').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  channel: messengerChannelEnum('channel').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: createdAt(),
+});
 
 export const notificationSettings = pgTable('notification_settings', {
   userId: uuid('user_id')
@@ -469,6 +540,28 @@ export const notificationSettings = pgTable('notification_settings', {
   accessEnabled: boolean('access_enabled').notNull().default(true),
   updatedAt: updatedAt(),
 });
+
+/** Тревожные сигналы в свободном тексте ученицы. */
+export const safetyFlags = pgTable(
+  'safety_flags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    studentId: uuid('student_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    level: safetyLevelEnum('level').notNull(),
+    /** Откуда сигнал: meal | comment. */
+    source: text('source').notNull(),
+    sourceId: text('source_id').notNull(),
+    diaryDate: date('diary_date'),
+    excerpt: text('excerpt').notNull(),
+    matches: text('matches').array().notNull().default(emptyTextArray),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedById: uuid('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('safety_student_idx').on(t.studentId, t.createdAt), uniqueIndex('safety_source_uq').on(t.source, t.sourceId)],
+);
 
 // ---------------------------------------------------------------------------
 // Согласия, аудит, учёт ИИ

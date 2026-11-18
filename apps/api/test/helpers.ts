@@ -3,7 +3,11 @@ import { createDb, users } from '@hud/db';
 import { afterAll, beforeEach } from 'vitest';
 import { loadConfig } from '../src/config';
 import type { Deps } from '../src/deps';
+import { createBackground } from '../src/lib/background';
+import { MemoryEventBus } from '../src/lib/events';
+import type { MessengerAdapter } from '../src/lib/messengers';
 import { ConsoleSms } from '../src/lib/sms';
+import { FakePushSender } from '../src/lib/webpush';
 import { appRouter } from '../src/routers';
 import { sessionFromToken } from '../src/services/auth';
 import { FoodCache } from '../src/services/foods';
@@ -19,11 +23,15 @@ export class TestClock {
 }
 
 /** Общие зависимости для тестов: настоящая PostgreSQL, фиктивные часы и SMS. */
-export function useTestDeps(opts: { llm?: AiEngine | null; env?: Record<string, string> } = {}) {
+export function useTestDeps(
+  opts: { llm?: AiEngine | null; env?: Record<string, string>; messengers?: MessengerAdapter[] } = {},
+) {
   const handle = createDb(TEST_DB_URL, { max: 4 });
   const clock = new TestClock();
   const sms = new ConsoleSms();
   const config = loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB_URL, DEV_OTP_CODE: '111111', ...opts.env });
+  const events = new MemoryEventBus();
+  const push = new FakePushSender();
   const deps: Deps = {
     db: handle.db,
     config,
@@ -31,19 +39,29 @@ export function useTestDeps(opts: { llm?: AiEngine | null; env?: Record<string, 
     sms,
     foods: new FoodCache(handle.db),
     now: clock.now,
+    events,
+    background: createBackground((e) => {
+      throw e;
+    }),
+    push,
+    messengers: new Map((opts.messengers ?? []).map((m) => [m.channel, m])),
   };
 
   beforeEach(async () => {
+    await deps.background.flush();
     clock.set('2026-11-18T09:00:00Z');
     sms.sent.length = 0;
+    events.published.length = 0;
+    push.sent.length = 0;
     // DELETE, а не TRUNCATE … CASCADE: каскад по внешнему ключу foods.created_by_id стёр бы базу продуктов.
     await handle.sql.unsafe('delete from users; delete from programs; delete from otp_codes; delete from ai_requests; delete from audit_log;');
   });
   afterAll(async () => {
+    await deps.background.flush();
     await handle.close();
   });
 
-  return { deps, clock, sms, handle };
+  return { deps, clock, sms, handle, events, push };
 }
 
 export interface TestClient {

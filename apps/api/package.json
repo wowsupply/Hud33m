@@ -14,7 +14,10 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "start:worker": "tsx src/worker.ts",
-    "migrate": "tsx --env-file-if-exists=../../.env src/scripts/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=../../.env src/scripts/migrate.ts",
+    "vapid-keys": "tsx src/scripts/vapid-keys.ts",
+    "reset-totp": "tsx --env-file-if-exists=../../.env src/scripts/reset-totp.ts",
+    "setup-webhooks": "tsx --env-file-if-exists=../../.env src/scripts/setup-webhooks.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
@@ -25,7 +28,11 @@
     "drizzle-orm": "^0.44.7",
     "fastify": "^5.12.8",
     "superjson": "^2.2.6",
-    "zod": "^4.6.7",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "web-push": "3.6.7",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "3.6.4"
   }
 }

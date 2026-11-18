@@ -1,7 +1,7 @@
-import { cn, EmptyState, isUnauthorized, PageLoader } from '@hud/ui';
+import { cn, EmptyState, isUnauthorized, PageLoader, useEventStream } from '@hud/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { Navigate, NavLink, Outlet, useNavigate } from 'react-router';
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTRPC, type RouterOutputs } from '../lib/trpc';
 
 type SessionUser = NonNullable<RouterOutputs['auth']['session']['user']>;
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/students', label: 'Ученицы' },
   { to: '/programs', label: 'Программы' },
   { to: '/reference', label: 'Справочники' },
+  { to: '/settings', label: 'Настройки' },
 ];
 
 export function Shell() {
@@ -20,8 +21,12 @@ export function Shell() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
   const session = useQuery(trpc.auth.session.queryOptions());
-  const unread = useQuery({ ...trpc.comms.unread.queryOptions(), refetchInterval: 60_000, enabled: !!session.data?.user });
+  const ready = !!session.data?.user && !session.data.totpSetupRequired;
+  const unread = useQuery({ ...trpc.comms.unread.queryOptions(), refetchInterval: 5 * 60_000, enabled: ready });
+  // Живые обновления: новые записи, ответы и тревожные сигналы появляются без перезагрузки.
+  useEventStream(ready ? '/api/events?app=admin' : null, () => void qc.invalidateQueries());
   const logout = useMutation(
     trpc.auth.logout.mutationOptions({
       onSuccess: () => {
@@ -36,6 +41,7 @@ export function Shell() {
   const user = session.data?.user;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'student') return <EmptyState title="Кабинет только для наставников" />;
+  if (session.data?.totpSetupRequired && location.pathname !== '/settings') return <Navigate to="/settings" replace />;
 
   return (
     <UserContext.Provider value={user}>

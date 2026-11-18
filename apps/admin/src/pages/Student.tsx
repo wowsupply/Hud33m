@@ -139,6 +139,7 @@ function OverviewTab({ card }: { card: Card_ }) {
   const days = Array.from({ length: 14 }, (_, i) => addDays(from, i));
   return (
     <div className="grid gap-4 xl:grid-cols-3">
+      <SafetyFlags studentId={id} />
       <Card className="xl:col-span-2">
         <h3 className="mb-2 font-semibold">Вес</h3>
         {weights.data?.entries.length ? (
@@ -200,7 +201,7 @@ function OverviewTab({ card }: { card: Card_ }) {
 
 function useThreads(studentId: string) {
   const trpc = useTRPC();
-  const threads = useQuery({ ...trpc.admin.students.threads.queryOptions({ studentId }), refetchInterval: 30_000 });
+  const threads = useQuery(trpc.admin.students.threads.queryOptions({ studentId }));
   const byTarget = useMemo(() => {
     const map = new Map<string, Thread>();
     for (const t of threads.data ?? []) map.set(`${t.targetType}:${t.targetId}`, t);
@@ -264,7 +265,7 @@ function DiaryTab({ studentId }: { studentId: string }) {
   const today = todayLocal();
   const date = params.get('date') ?? today;
   const setDate = (d: string) => setParams({ date: d });
-  const day = useQuery({ ...trpc.admin.students.day.queryOptions({ studentId, date }), refetchInterval: 30_000 });
+  const day = useQuery(trpc.admin.students.day.queryOptions({ studentId, date }));
   const { byTarget } = useThreads(studentId);
   const gen = useMutation(
     trpc.admin.students.generateDaySummary.mutationOptions({
@@ -823,5 +824,34 @@ function ProfileTab({ card }: { card: Card_ }) {
         )}
       </Card>
     </div>
+  );
+}
+
+function SafetyFlags({ studentId }: { studentId: string }) {
+  const trpc = useTRPC();
+  const qc = useQueryClient();
+  const flags = useQuery(trpc.admin.students.safetyFlags.queryOptions({ studentId }));
+  const review = useMutation(trpc.admin.students.reviewSafetyFlag.mutationOptions({ onSuccess: () => qc.invalidateQueries({ queryKey: trpc.admin.pathKey() }) }));
+  const open = (flags.data ?? []).filter((f) => !f.reviewedAt);
+  if (!open.length) return null;
+  return (
+    <Card className="bg-rose-50/60 ring-rose-200 xl:col-span-3">
+      <h3 className="mb-2 font-semibold text-rose-900">Тревожные сигналы</h3>
+      <div className="divide-y divide-rose-100">
+        {open.map((f) => (
+          <div key={f.id} className="flex flex-wrap items-start justify-between gap-3 py-2">
+            <div className="min-w-0 flex-1 text-sm">
+              <span className={f.level === 'high' ? 'mr-2 rounded-full bg-rose-600 px-2 py-0.5 text-xs text-white' : 'mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900'}>
+                {f.level === 'high' ? 'срочно' : 'важно'}
+              </span>
+              {f.diaryDate ? formatDateRu(f.diaryDate) : 'ответ в переписке'} · «{f.excerpt}»
+            </div>
+            <Button size="sm" variant="secondary" onClick={() => review.mutate({ studentId, flagId: f.id })}>
+              Обработано
+            </Button>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

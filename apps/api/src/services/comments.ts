@@ -85,9 +85,10 @@ export async function createComment(
     })
     .returning({ id: comments.id });
 
+  await deps.events.publish({ kind: 'comment', studentId: input.studentId });
   const isStaff = input.author.role !== 'student';
   if (isStaff) {
-    await notify(deps.db, {
+    await notify(deps, {
       userId: input.studentId,
       type: 'mentor_comment',
       title: 'Новый комментарий наставника',
@@ -100,7 +101,7 @@ export async function createComment(
       .from(mentorAssignments)
       .where(eq(mentorAssignments.studentId, input.studentId));
     for (const m of mentors) {
-      await notify(deps.db, {
+      await notify(deps, {
         userId: m.mentorId,
         type: 'student_reply',
         title: `Ответ от ${input.author.firstName}`,

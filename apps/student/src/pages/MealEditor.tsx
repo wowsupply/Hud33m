@@ -30,6 +30,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { BackLink, PageHeader } from '../components/AppShell';
+import { SupportSheet, type SafetyInfo } from '../components/SupportSheet';
 import { useTRPC, type RouterOutputs } from '../lib/trpc';
 
 export interface EditItem {
@@ -153,13 +154,16 @@ function MealEditor({ meal }: { meal: RouterOutputs['diary']['getMeal'] | null }
       : null,
   });
 
-  const done = async () => {
+  const [support, setSupport] = useState<SafetyInfo | null>(null);
+  const leave = () => navigate(date === todayLocal() ? '/' : `/day/${date}`, { replace: true });
+  const done = async (r?: { safety?: SafetyInfo | null }) => {
     await invalidate();
-    navigate(date === todayLocal() ? '/' : `/day/${date}`, { replace: true });
+    if (r?.safety) setSupport(r.safety);
+    else leave();
   };
-  const create = useMutation(trpc.diary.createMeal.mutationOptions({ onSuccess: done, onError: (e) => toast(errorMessage(e), 'error') }));
-  const update = useMutation(trpc.diary.updateMeal.mutationOptions({ onSuccess: done, onError: (e) => toast(errorMessage(e), 'error') }));
-  const remove = useMutation(trpc.diary.deleteMeal.mutationOptions({ onSuccess: done, onError: (e) => toast(errorMessage(e), 'error') }));
+  const create = useMutation(trpc.diary.createMeal.mutationOptions({ onSuccess: (r) => done(r), onError: (e) => toast(errorMessage(e), 'error') }));
+  const update = useMutation(trpc.diary.updateMeal.mutationOptions({ onSuccess: (r) => done(r), onError: (e) => toast(errorMessage(e), 'error') }));
+  const remove = useMutation(trpc.diary.deleteMeal.mutationOptions({ onSuccess: () => done(), onError: (e) => toast(errorMessage(e), 'error') }));
 
   const save = () => {
     if (meal) update.mutate({ ...payload(), id: meal.id });
@@ -261,6 +265,13 @@ function MealEditor({ meal }: { meal: RouterOutputs['diary']['getMeal'] | null }
         )}
       </div>
 
+      <SupportSheet
+        info={support}
+        onClose={() => {
+          setSupport(null);
+          leave();
+        }}
+      />
       <FoodSearchSheet
         open={searchFor !== null}
         onClose={() => setSearchFor(null)}

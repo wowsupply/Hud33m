@@ -16,6 +16,7 @@ export interface SessionUser {
   phone: string;
   timezone: string;
   onboardedAt: Date | null;
+  totpEnabled: boolean;
 }
 
 export interface Ctx {
@@ -90,6 +91,9 @@ export const studentWriteProcedure = studentProcedure.use(async ({ ctx, next }) 
 export const staffProcedure = authedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== 'admin' && ctx.user.role !== 'mentor') {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Раздел для наставников' });
+  }
+  if (ctx.deps.config.staffTotpRequired && !ctx.user.totpEnabled) {
+    throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Подключите двухфакторную защиту в настройках' });
   }
   return next();
 });

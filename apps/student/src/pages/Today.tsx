@@ -25,6 +25,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { PushPrompt } from '../components/ChannelsCard';
 import { useTRPC, type RouterOutputs } from '../lib/trpc';
 
 type DayView = RouterOutputs['diary']['day'];
@@ -123,6 +124,7 @@ function DayContent({ day }: { day: DayView }) {
   const sorted = day.meals;
   return (
     <div className="flex flex-col gap-3 px-4 pt-4">
+      {day.canWrite && <PushPrompt />}
       <WeightCard day={day} />
 
       <Card>

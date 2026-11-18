@@ -16,8 +16,21 @@ import {
   weightHistory,
 } from '../services/diary';
 import { getDayView } from '../services/insights';
+import { scanForSafety } from '../services/safety';
 import { latestQuestionnaire } from '../services/targets';
 import { router, studentProcedure, studentWriteProcedure } from '../trpc';
+
+/** Свободный текст приёма пищи, который проверяется протоколом тревожных сигналов. */
+function mealTexts(meal: { rawInput: string | null; note: { situationText: string | null; comment: string | null; situationTags: string[]; emotionsBefore: string[]; emotionsAfter: string[] } | null }) {
+  return [
+    meal.rawInput,
+    meal.note?.situationText,
+    meal.note?.comment,
+    ...(meal.note?.situationTags ?? []),
+    ...(meal.note?.emotionsBefore ?? []),
+    ...(meal.note?.emotionsAfter ?? []),
+  ];
+}
 
 export const diaryRouter = router({
   day: studentProcedure.input(z.object({ date: dateStrSchema })).query(async ({ ctx, input }) => ({
@@ -31,11 +44,13 @@ export const diaryRouter = router({
 
   saveWeight: studentWriteProcedure.input(weightInputSchema).mutation(async ({ ctx, input }) => {
     await upsertWeight(ctx.deps.db, ctx.user.id, input.date, input.weightKg);
+    await ctx.deps.events.publish({ kind: 'diary', studentId: ctx.user.id });
     return { ok: true };
   }),
 
   deleteWeight: studentWriteProcedure.input(z.object({ date: dateStrSchema })).mutation(async ({ ctx, input }) => {
     await deleteWeight(ctx.deps.db, ctx.user.id, input.date);
+    await ctx.deps.events.publish({ kind: 'diary', studentId: ctx.user.id });
     return { ok: true };
   }),
 
@@ -75,7 +90,15 @@ export const diaryRouter = router({
     .input(mealInputSchema.extend({ aiRequestId: z.uuid().nullable().default(null) }))
     .mutation(async ({ ctx, input }) => {
       const { aiRequestId, ...meal } = input;
-      return { id: await createMeal(ctx.deps, ctx.user, meal, aiRequestId) };
+      const id = await createMeal(ctx.deps, ctx.user, meal, aiRequestId);
+      const safety = await scanForSafety(ctx.deps, ctx.user, {
+        source: 'meal',
+        sourceId: id,
+        diaryDate: meal.diaryDate,
+        texts: mealTexts(meal),
+      });
+      await ctx.deps.events.publish({ kind: 'diary', studentId: ctx.user.id });
+      return { id, safety };
     }),
 
   updateMeal: studentWriteProcedure
@@ -83,11 +106,19 @@ export const diaryRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...meal } = input;
       await updateMeal(ctx.deps, ctx.user, id, meal);
-      return { ok: true };
+      const safety = await scanForSafety(ctx.deps, ctx.user, {
+        source: 'meal',
+        sourceId: id,
+        diaryDate: meal.diaryDate,
+        texts: mealTexts(meal),
+      });
+      await ctx.deps.events.publish({ kind: 'diary', studentId: ctx.user.id });
+      return { ok: true, safety };
     }),
 
   deleteMeal: studentWriteProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
     await deleteMeal(ctx.deps.db, ctx.user.id, input.id);
+    await ctx.deps.events.publish({ kind: 'diary', studentId: ctx.user.id });
     return { ok: true };
   }),
 

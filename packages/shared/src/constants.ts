@@ -170,6 +170,7 @@ export const NOTIFICATION_TYPES = [
   'weekly_report_ready',
   'access_ending',
   'access_ended',
+  'safety_alert',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -213,6 +214,14 @@ export const CONSENT_DOCS: Record<ConsentType, ConsentDoc> = {
     text: 'Я согласна получать сообщения о новых марафонах, программах и предложениях. Согласие можно отозвать в профиле. Черновик — окончательный текст предоставит юрист.',
   },
 };
+
+// ---------------------------------------------------------------------------
+// Каналы доставки уведомлений
+// ---------------------------------------------------------------------------
+
+export const MESSENGER_CHANNELS = ['telegram', 'max'] as const;
+export type MessengerChannel = (typeof MESSENGER_CHANNELS)[number];
+export const MESSENGER_TITLES: Record<MessengerChannel, string> = { telegram: 'Telegram', max: 'MAX' };
 
 export const AI_DISCLAIMER =
   'Анализ — инструмент самонаблюдения, а не медицинское или психологическое заключение.';

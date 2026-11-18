@@ -1,7 +1,11 @@
 import { createAiService, GigaChatClient, LlmEngine, YandexGptClient, type AiService } from '@hud/ai';
 import { createDb, type Db, type DbHandle } from '@hud/db';
 import type { AppConfig } from './config';
+import { createBackground, type Background } from './lib/background';
+import { PgEventBus, type EventBus } from './lib/events';
+import { createMessengers, type MessengerRegistry } from './lib/messengers';
 import { ConsoleSms, SmsRu, type SmsSender } from './lib/sms';
+import { WebPushSender, type PushSender } from './lib/webpush';
 import { FoodCache } from './services/foods';
 
 export interface Deps {
@@ -11,6 +15,11 @@ export interface Deps {
   sms: SmsSender;
   foods: FoodCache;
   now: () => Date;
+  events: EventBus;
+  background: Background;
+  /** null — Web Push не настроен (нет ключей VAPID). */
+  push: PushSender | null;
+  messengers: MessengerRegistry;
 }
 
 export function createAi(config: AppConfig): AiService {
@@ -43,6 +52,12 @@ export function createSms(config: AppConfig): SmsSender {
   return config.SMS_PROVIDER === 'smsru' ? new SmsRu(config.SMSRU_API_ID!) : new ConsoleSms();
 }
 
+export function createPush(config: AppConfig): PushSender | null {
+  return config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY
+    ? new WebPushSender(config.VAPID_PUBLIC_KEY, config.VAPID_PRIVATE_KEY, config.VAPID_SUBJECT)
+    : null;
+}
+
 export function createDeps(config: AppConfig): { deps: Deps; handle: DbHandle } {
   const handle = createDb(config.DATABASE_URL);
   const deps: Deps = {
@@ -52,6 +67,10 @@ export function createDeps(config: AppConfig): { deps: Deps; handle: DbHandle } 
     sms: createSms(config),
     foods: new FoodCache(handle.db),
     now: () => new Date(),
+    events: new PgEventBus(handle.sql),
+    background: createBackground((e) => console.error('[background]', e)),
+    push: createPush(config),
+    messengers: createMessengers(config),
   };
   return { deps, handle };
 }

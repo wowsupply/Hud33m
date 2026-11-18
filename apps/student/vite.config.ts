@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/apple-touch-icon.png', 'icons/icon.svg'],
+      includeAssets: ['icons/apple-touch-icon.png', 'icons/icon.svg', 'push-handler.js'],
       manifest: {
         name: 'Дневник питания',
         short_name: 'Дневник',
@@ -28,6 +28,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ['/push-handler.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [],

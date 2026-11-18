@@ -8,6 +8,13 @@
       "when": 1795009023088,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795024242861,
+      "tag": "0001_notifications_2fa_safety",
+      "breakpoints": true
     }
   ]
 }

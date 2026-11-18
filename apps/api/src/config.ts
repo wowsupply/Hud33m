@@ -29,9 +29,26 @@ const envSchema = z.object({
   ACCESS_AFTER_END: z.enum(['read_only', 'blocked']).default('read_only'),
   WORKER_INTERVAL_MS: z.coerce.number().int().default(60_000),
   TRUST_PROXY: bool,
+  /** Web Push: ключи VAPID (сгенерировать: pnpm --filter @hud/api vapid-keys). */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:support@example.ru'),
+  /** Бот Telegram (необязательно). */
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_BOT_USERNAME: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
+  /** Бот MAX (необязательно). */
+  MAX_BOT_TOKEN: z.string().optional(),
+  MAX_BOT_NAME: z.string().optional(),
+  MAX_WEBHOOK_SECRET: z.string().optional(),
+  MAX_API_URL: z.string().default('https://platform-api2.max.ru'),
+  MAX_DEEPLINK_TEMPLATE: z.string().default('https://max.ru/{bot}?start={payload}'),
+  /** Обязательная двухфакторная защита для наставников (по умолчанию — в продакшене). */
+  STAFF_TOTP_REQUIRED: z.enum(['true', 'false']).optional(),
 });
 
-export type AppConfig = z.infer<typeof envSchema> & { isProd: boolean };
+export type AppConfig = z.infer<typeof envSchema> & { isProd: boolean; staffTotpRequired: boolean };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
@@ -49,5 +66,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (parsed.SMS_PROVIDER === 'smsru' && !parsed.SMSRU_API_ID) {
     throw new Error('SMS_PROVIDER=smsru требует SMSRU_API_ID');
   }
-  return { ...parsed, isProd };
+  if (parsed.TELEGRAM_BOT_TOKEN && (!parsed.TELEGRAM_BOT_USERNAME || !parsed.TELEGRAM_WEBHOOK_SECRET)) {
+    throw new Error('Для бота Telegram нужны TELEGRAM_BOT_USERNAME и TELEGRAM_WEBHOOK_SECRET');
+  }
+  if (parsed.MAX_BOT_TOKEN && (!parsed.MAX_BOT_NAME || !parsed.MAX_WEBHOOK_SECRET)) {
+    throw new Error('Для бота MAX нужны MAX_BOT_NAME и MAX_WEBHOOK_SECRET');
+  }
+  if (!!parsed.VAPID_PUBLIC_KEY !== !!parsed.VAPID_PRIVATE_KEY) {
+    throw new Error('Задайте обе переменные VAPID_PUBLIC_KEY и VAPID_PRIVATE_KEY');
+  }
+  const staffTotpRequired = parsed.STAFF_TOTP_REQUIRED ? parsed.STAFF_TOTP_REQUIRED === 'true' : isProd;
+  return { ...parsed, isProd, staffTotpRequired };
 }
