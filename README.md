@@ -7,6 +7,7 @@
 - План и архитектура: [`docs/PLAN.md`](docs/PLAN.md)
 - Открытые вопросы и решения по умолчанию: [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md)
 - Развёртывание: [`docs/DEPLOY.md`](docs/DEPLOY.md)
+- Запуск на своём компьютере (Windows): [`docs/LOCAL_SETUP.md`](docs/LOCAL_SETUP.md)
 
 ## Структура
 
